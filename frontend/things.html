@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>事情梳理 · 失败免疫练习</title><link rel="stylesheet" href="/style.css"></head>
+<body class="triage-page">
+<nav class="tabs" aria-label="页面导航"><a href="/">失败免疫练习</a><a href="/things" aria-current="page">事情梳理</a></nav>
+<header><div><h1>事情梳理</h1><p class="page-description">先把事情写下来，再决定把时间用在哪里。</p></div><span class="page-mark">重要 × 紧急</span></header>
+<main>
+<section class="input-panel" aria-labelledby="input-title">
+<div class="section-heading"><h2 id="input-title">任务输入</h2><span id="input-count" class="meta">0 件事</span></div>
+<label for="task-input" class="note input-label">每行一件事，空行自动忽略。可以补充目标、截止时间及延误后果，让判断更准确。</label>
+<div class="input-row"><textarea id="task-input" maxlength="200000" placeholder="例如：&#10;明天下午前提交客户方案，延误会影响签约&#10;本季度建立长期学习计划&#10;今天代同事确认会议室&#10;有空整理收藏夹" aria-describedby="input-help save-status"></textarea><div class="triage-actions"><button id="analyze" type="button" disabled>分析</button><button id="archive" class="secondary" type="button" disabled>归档</button></div></div>
+<div class="input-bottom"><p id="input-help" class="note">每行一件事 · 分析后点击归档，保存本批并开始下一批 · 一次最多 100 件</p><p id="save-status" class="note" role="status" aria-live="polite">正在读取本机数据…</p></div>
+<p id="analysis-message" class="message" role="status" aria-live="polite"></p>
+<button id="reconnect" class="secondary" type="button" hidden>重新连接</button>
+<div id="draft-conflict" class="draft-conflict" hidden><p>其他页面已更新输入。以下为本页未保存草稿，请复制需要的内容到上方后重新分析。</p><pre id="conflict-text"></pre></div>
+</section>
+<div class="result-meta"><p id="result-summary" class="meta">还没有分析结果</p><p id="result-stale" class="meta" hidden>输入已修改，点击「分析」更新下方结果。</p></div>
+<div id="analysis-results" aria-busy="false">
+<section aria-labelledby="top-title"><div class="section-heading"><h2 id="top-title">优先处理 TOP 3</h2><p class="meta">各象限分别排序，最多展示 3 件</p></div><div id="top-groups" class="top-grid"></div></section>
+<section aria-labelledby="quadrant-title"><div class="section-heading"><h2 id="quadrant-title">重要紧急四象限</h2><p class="meta">每件事只归入一个象限</p></div><div id="quadrant-groups" class="quadrant-grid"></div></section>
+</div>
+<section class="archive-section" aria-labelledby="archives-title"><div class="section-heading"><h2 id="archives-title">历史归档</h2><span id="archive-count" class="meta">0 批</span></div><p class="note">归档保留任务、TOP 3、四象限判断及分析时间。点击批次查看。</p><div id="archive-list"></div></section>
+</main>
+<footer>输入、最近分析和历史归档保存在本机独立数据库。信息不足会标注「待确认」，补充后可再次分析。<a href="/api/export" download="失败免疫数据备份.json">导出数据备份</a></footer>
+<script src="/triage.js"></script>
+</body></html>

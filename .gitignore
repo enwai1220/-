@@ -1,0 +1,11 @@
+data/
+__pycache__/
+*.pyc
+*.sqlite*
+*.db
+*.log
+.env*
+AGENTS.md
+docs/项目与维护说明.md
+docs/legacy-ui-before-database.html
+docs/context/KNOWLEDGE_SYNC.json
