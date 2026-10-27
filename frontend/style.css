@@ -14,3 +14,5 @@ body{max-width:1500px;margin:auto}a{color:#111}#recovery{white-space:pre-wrap;bo
 
 .triage-actions{flex-shrink:0}.triage-actions .secondary{margin-top:0}
 @media(max-width:680px){.input-row{flex-direction:column}.input-row textarea{width:100%}.triage-actions{align-self:flex-end}}
+
+.domain-switch{display:flex;gap:8px;margin:0 0 10px}.domain-switch button{min-width:90px;margin:0;background:#fff;color:#111;border:1px solid #aaa}.domain-switch button[aria-pressed="true"]{background:#111;color:#fff;border-color:#111}.domain-switch button:disabled{opacity:.5}

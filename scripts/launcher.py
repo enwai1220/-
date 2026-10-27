@@ -3,14 +3,14 @@ import argparse, ctypes, json, socket, subprocess, sys, time, urllib.request, we
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 URL='http://127.0.0.1:3010/'
-COMPAT_URL='http://127.0.0.1:3011/'
+COMPAT_URL='http://127.0.0.1:3012/'
 client=urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 def healthy(require_triage=False,url=None):
  try:
   with client.open((url or URL)+'api/health',timeout=2) as response:
    data=json.load(response)
-   return data.get('app')=='failure-immunity' and (not require_triage or 'task-triage' in data.get('features',[]))
+   return data.get('app')=='failure-immunity' and (not require_triage or 'work-life-triage' in data.get('features',[]))
  except Exception:return False
 
 def ensure_service(url,require_triage=False):

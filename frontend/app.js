@@ -7,12 +7,12 @@ if (new URLSearchParams(location.search).get('page')==='things' || location.path
  document.body.replaceChildren(message);document.body.style.cssText='padding:0;max-width:none;margin:0';
  async function check(url) {
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),5000);
-  try {const response=await fetch(url+'/api/health',{signal:controller.signal});if(!response.ok)throw Error();const health=await response.json();return health.app==='failure-immunity'&&health.features?.includes('task-triage');}
+  try {const response=await fetch(url+'/api/health',{signal:controller.signal});if(!response.ok)throw Error();const health=await response.json();return health.app==='failure-immunity'&&health.features?.includes('work-life-triage');}
   finally{clearTimeout(timer);}
  }
  (async()=>{
   let origin=location.origin;
-  if(!await check(origin)) {origin='http://127.0.0.1:3011';if(!await check(origin))throw Error();}
+  if(!await check(origin)) {origin='http://127.0.0.1:3012';if(!await check(origin))throw Error();}
   const frame=document.createElement('iframe');frame.title='事情梳理';frame.src=origin+'/things';frame.style.cssText='display:block;width:100%;height:100dvh;min-height:100vh;border:0';
   frame.addEventListener('load',()=>message.remove());document.body.append(frame);
  })().catch(()=>{message.textContent='暂时无法连接事情梳理，请从固定入口重新打开。';});

@@ -1,7 +1,15 @@
 'use strict';
 (() => {
  const $ = id => document.getElementById(id);
- const CACHE = 'failure-immunity-triage-v1';
+ const domain=new URLSearchParams(location.search).get('domain')==='life'?'life':'work';
+ const CACHE = domain==='work'?'failure-immunity-triage-v1':'failure-immunity-triage-life-v1';
+ const domainName=domain==='life'?'生活':'工作';
+ document.title=domainName+'事情梳理 · 失败免疫练习';
+ $('input-title').textContent=domainName+'任务输入';
+ $('domain-description').textContent=domainName+'事项独立保存、分析与归档，切换板块不会混合数据。';
+ $('domain-'+domain).setAttribute('aria-pressed','true');
+ $('domain-'+(domain==='work'?'life':'work')).setAttribute('aria-pressed','false');
+ if(domain==='life')$('task-input').placeholder='例如：\n明天预约复查，医生要求本周完成\n每周安排两次运动，改善长期健康\n今晚前确认家庭聚餐人数\n有空整理相册';
  if(window.top!==window.self){document.querySelectorAll('.tabs a').forEach(link=>{link.href='http://127.0.0.1:3010/'+(link.getAttribute('aria-current')==='page'?'?page=things':'');link.target='_top';});}
  const groups = [
   {key:'important_urgent',name:'重要且紧急',action:'优先处理',number:'01'},
@@ -29,7 +37,7 @@
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),route.endsWith('/analyze')?200000:20000);
   try{
-   const response=await fetch(route,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data),signal:controller.signal});
+   const response=await fetch(route+'?domain='+domain,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data),signal:controller.signal});
    const value=await response.json();
    if(!response.ok){const error=Error(value.error||'请求失败，请重试。');error.status=response.status;throw error;}
    return value;
@@ -93,10 +101,20 @@
   $('result-summary').textContent=result?'最近成功分析：'+stamp+'（北京时间） · 共 '+tasks.length+' 件事':'还没有分析结果';
   updateInput();
  }
+ let switching=false;
+ function setDomainButtons(disabled){$('domain-work').disabled=disabled;$('domain-life').disabled=disabled;}
+ async function switchDomain(next){
+  if(next===domain||busy||switching)return;
+  switching=true;setDomainButtons(true);clearTimeout(timer);cache();
+  try{if(!ready)throw Error('请先重新连接并保存输入。');await flush();const url=new URL(location.href);url.searchParams.set('domain',next);location.assign(url.href);}
+  catch(error){message('切换失败：'+error.message+' 当前输入已保留。',true);switching=false;setDomainButtons(busy);}
+ }
+ $('domain-work').addEventListener('click',()=>switchDomain('work'));
+ $('domain-life').addEventListener('click',()=>switchDomain('life'));
  input.addEventListener('input',schedule);
  $('analyze').addEventListener('click',async()=>{
   if(busy||!ready)return;
-  busy=true;updateInput();$('analyze').disabled=true;$('analyze').textContent='分析中…';$('analysis-results').setAttribute('aria-busy','true');
+  busy=true;setDomainButtons(true);updateInput();$('analyze').disabled=true;$('analyze').textContent='分析中…';$('analysis-results').setAttribute('aria-busy','true');
   message('正在统一分析全部任务，请稍候。你仍可以修改输入。');clearTimeout(timer);
   try{
    await flush();const snapshot=input.value;const currentRevision=revision;
@@ -105,7 +123,7 @@
    result=data.result;resultInput=data.resultInput;analyzedAt=data.analyzedAt;cache();render();
    message(input.value===snapshot?'分析完成，TOP 3 和四象限已同步更新。':'本轮分析已保存；输入在分析期间有修改，请再次分析以更新结果。');
   }catch(error){message('分析失败：'+error.message+' 输入和上次成功结果已保留，点击「分析」重试。',true);}
-  finally{busy=false;$('analyze').disabled=!ready;$('analyze').textContent='分析';$('analysis-results').setAttribute('aria-busy','false');updateInput();}
+  finally{busy=false;setDomainButtons(false);$('analyze').disabled=!ready;$('analyze').textContent='分析';$('analysis-results').setAttribute('aria-busy','false');updateInput();}
  });
 
  function renderArchives(){
@@ -130,7 +148,7 @@
  async function loadArchives(){archives=(await request('/api/triage/archives')).archives;renderArchives();}
  $('archive').addEventListener('click',async()=>{
   if(busy||!ready)return;
-  busy=true;input.disabled=true;$('analyze').disabled=true;$('archive').textContent='归档中…';updateInput();clearTimeout(timer);
+  busy=true;setDomainButtons(true);input.disabled=true;$('analyze').disabled=true;$('archive').textContent='归档中…';updateInput();clearTimeout(timer);
   message('正在将本批任务及分析结果写入归档…');
   try{
    await flush();pendingArchive=pendingArchive||crypto.randomUUID();cache();
@@ -140,7 +158,7 @@
    $('save-status').textContent='本批已归档到独立数据库，可以输入新的事情';
    message('归档成功，输入区已清空。历史归档中可随时查看本批结果。');
   }catch(error){message('归档未确认：'+error.message+' 当前内容已保留，请重试；重复提交不会重复归档。',true);}
-  finally{busy=false;input.disabled=false;$('analyze').disabled=!ready;$('archive').textContent='归档';updateInput();}
+  finally{busy=false;setDomainButtons(false);input.disabled=false;$('analyze').disabled=!ready;$('archive').textContent='归档';updateInput();}
  });
  async function init(){
   ready=false;updateInput();$('analyze').disabled=true;$('reconnect').hidden=true;

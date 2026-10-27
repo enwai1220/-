@@ -1,6 +1,7 @@
 """Single-user loopback application. Python stdlib only; SQLite is the source of truth."""
 import argparse, hashlib, json, os, re, shutil, sqlite3, subprocess, tempfile, threading, uuid, socket, time, tomllib, urllib.request, urllib.error, urllib.parse
 from contextlib import contextmanager, closing
+from contextvars import ContextVar
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -8,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT=Path(__file__).resolve().parents[1]
 DB=ROOT/'data'/'failure-immunity.sqlite3'
 TRIAGE_DB=ROOT/'data'/'task-triage.sqlite3'
+DOMAIN=ContextVar('triage_domain',default='work')
 PORT=3010
 FIELDS=('date','event','category','analysis','engine')
 LIMITS={'date':100,'event':8000,'category':20000,'analysis':40000,'engine':100}
@@ -26,14 +28,26 @@ def database(path):
     finally:con.close()
 
 def connect():return database(DB)
-def triage_connect():return database(TRIAGE_DB)
+def triage_path():return TRIAGE_DB if DOMAIN.get()=='work' else TRIAGE_DB.with_name(TRIAGE_DB.stem+'-life.sqlite3')
+
+def triage_connect():return database(triage_path())
+
+@contextmanager
+def triage_domain(domain):
+    if domain not in ('work','life'):raise Problem('板块必须为工作或生活。')
+    token=DOMAIN.set(domain)
+    try:yield
+    finally:DOMAIN.reset(token)
+
+def triage_export(domain):
+    with triage_domain(domain):return {'state':triage_state(),**triage_archives()}
 
 def initialize_triage():
     TRIAGE_DB.parent.mkdir(parents=True,exist_ok=True)
     with triage_connect() as con:
         con.execute('PRAGMA journal_mode=WAL')
         con.executescript((ROOT/'backend/triage-schema.sql').read_text(encoding='utf-8-sig'))
-        if not con.execute('SELECT 1 FROM task_triage WHERE id=1').fetchone():
+        if DOMAIN.get()=='work' and not con.execute('SELECT 1 FROM task_triage WHERE id=1').fetchone():
             with connect() as old:
                 exists=old.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_triage'").fetchone()
                 row=old.execute('SELECT * FROM task_triage WHERE id=1').fetchone() if exists else None
@@ -43,7 +57,7 @@ def initialize_triage():
     triage_backup('startup')
 
 def triage_backup(reason):
-    folder=TRIAGE_DB.parent/'backups'/'task-triage';folder.mkdir(parents=True,exist_ok=True)
+    folder=TRIAGE_DB.parent/'backups'/('task-triage' if DOMAIN.get()=='work' else 'task-triage-life');folder.mkdir(parents=True,exist_ok=True)
     target=folder/(datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')+'-'+reason+'.sqlite3')
     with BACKUP_LOCK,triage_connect() as source,closing(sqlite3.connect(target)) as dest:source.backup(dest)
     return target
@@ -54,7 +68,8 @@ def initialize():
         con.execute('PRAGMA journal_mode=WAL')
         con.executescript((ROOT/'backend'/'schema.sql').read_text(encoding='utf-8-sig'))
     backup('startup')
-    initialize_triage()
+    for domain in ('work','life'):
+        with triage_domain(domain):initialize_triage()
 
 def backup(reason):
     folder=DB.parent/'backups';folder.mkdir(exist_ok=True)
@@ -314,6 +329,7 @@ def analyze_triage(data):
         if tasks:
             stamp=datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8))).isoformat()
             prompt=(ROOT/'backend'/'triage-prompt.txt').read_text(encoding='utf-8')
+            prompt+='\n当前板块：'+('生活。重要性结合健康、家庭、关系、个人成长及生活质量判断；休息娱乐可有恢复价值。' if DOMAIN.get()=='life' else '工作。重要性结合工作目标、交付影响、长期能力和延误损失判断。')
             prompt+='\n本次北京时间：'+stamp+'\n任务素材：'+json.dumps([{'id':i+1,'name':task} for i,task in enumerate(tasks)],ensure_ascii=False)
             result=validate_triage(model_json(prompt,TRIAGE_SCHEMA),tasks)
         else:result={'tasks':[]}
@@ -373,9 +389,15 @@ class Handler(BaseHTTPRequestHandler):
         if not self.allowed():self.send({'error':'只允许本机工作台访问。'},403);return
         self.send_response(204);self.send_header('Access-Control-Allow-Origin',self.headers.get('Origin',''));self.send_header('Access-Control-Allow-Methods','GET,POST,OPTIONS');self.send_header('Access-Control-Allow-Headers','Content-Type');self.end_headers()
     def do_GET(self):
+        try:
+            domain=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('domain',['work'])[0]
+            with triage_domain(domain):self.get_response()
+        except Problem as error:self.send({'error':error.message},error.status)
+        except Exception:self.send({'error':'读取失败，请重试。'},500)
+    def get_response(self):
         if not self.allowed():self.send({'error':'只允许本机访问。'},403);return
         route=self.path.split('?')[0]
-        if route=='/api/health':self.send({'app':'failure-immunity','database':'sqlite','schema':3,'features':['task-triage','triage-archives','separate-triage-database']})
+        if route=='/api/health':self.send({'app':'failure-immunity','database':'sqlite','schema':4,'features':['task-triage','triage-archives','separate-triage-database','work-life-triage']})
         elif route=='/api/state':self.send(state())
         elif route=='/api/triage/state':self.send(triage_state())
         elif route=='/api/triage/archives':self.send(triage_archives())
@@ -384,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
             mime='text/javascript' if file.endswith('.js') else 'text/css' if file.endswith('.css') else 'text/html'
             self.send((ROOT/'frontend'/file).read_bytes(),mime=mime+'; charset=utf-8')
         elif route=='/api/export':
-            self.send({'format':3,'exportedAt':now(),**state(),'taskTriage':triage_state(),'taskTriageArchives':triage_archives()['archives']})
+            self.send({'format':4,'exportedAt':now(),**state(),'taskTriage':triage_export('work')['state'],'taskTriageArchives':triage_export('work')['archives'],'lifeTriage':triage_export('life')})
         else:self.send({'error':'页面不存在。'},404)
     def do_POST(self):
         if not self.allowed():self.send({'error':'只允许本机工作台访问。'},403);return
@@ -392,8 +414,10 @@ class Handler(BaseHTTPRequestHandler):
             length=int(self.headers.get('Content-Length','0'))
             if length<1 or length>5000000:raise Problem('请求大小错误。')
             data=json.loads(self.rfile.read(length));routes={'/api/save':save_record,'/api/archive':archive_records,'/api/import':import_legacy,'/api/analyze':analyze,'/api/triage/save':save_triage,'/api/triage/analyze':analyze_triage,'/api/triage/archive':archive_triage}
-            if self.path not in routes:raise Problem('接口不存在。',404)
-            self.send(routes[self.path](data))
+            parsed=urllib.parse.urlsplit(self.path)
+            if parsed.path not in routes:raise Problem('接口不存在。',404)
+            domain=urllib.parse.parse_qs(parsed.query).get('domain',['work'])[0]
+            with triage_domain(domain):self.send(routes[parsed.path](data))
         except Problem as error:self.send({'error':error.message},error.status)
         except (ValueError,TypeError,AttributeError):self.send({'error':'请求格式错误。'},400)
         except Exception:self.send({'error':'数据库操作失败，输入仍保留。请重试或检查磁盘。'},500)
