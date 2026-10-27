@@ -115,7 +115,9 @@
  $('analyze').addEventListener('click',async()=>{
   if(busy||!ready)return;
   busy=true;setDomainButtons(true);updateInput();$('analyze').disabled=true;$('analyze').textContent='分析中…';$('analysis-results').setAttribute('aria-busy','true');
-  message('正在统一分析全部任务，请稍候。你仍可以修改输入。');clearTimeout(timer);
+  const started=Date.now(),taskCount=lines(input.value).length;
+  const showProgress=()=>{const seconds=Math.floor((Date.now()-started)/1000);$('analyze').textContent='分析中 '+seconds+'秒';message('AI 正在分析 '+taskCount+' 件事，已等待 '+seconds+' 秒。通常需要约 1 分钟，最多等待约 3 分钟；你仍可以修改输入。');};
+  showProgress();const progressTimer=setInterval(showProgress,1000);clearTimeout(timer);
   try{
    await flush();const snapshot=input.value;const currentRevision=revision;
    const data=await request('/api/triage/analyze',{input:snapshot,revision:currentRevision});
@@ -123,7 +125,7 @@
    result=data.result;resultInput=data.resultInput;analyzedAt=data.analyzedAt;cache();render();
    message(input.value===snapshot?'分析完成，TOP 3 和四象限已同步更新。':'本轮分析已保存；输入在分析期间有修改，请再次分析以更新结果。');
   }catch(error){message('分析失败：'+error.message+' 输入和上次成功结果已保留，点击「分析」重试。',true);}
-  finally{busy=false;setDomainButtons(false);$('analyze').disabled=!ready;$('analyze').textContent='分析';$('analysis-results').setAttribute('aria-busy','false');updateInput();}
+  finally{clearInterval(progressTimer);busy=false;setDomainButtons(false);$('analyze').disabled=!ready;$('analyze').textContent='分析';$('analysis-results').setAttribute('aria-busy','false');updateInput();}
  });
 
  function renderArchives(){
@@ -184,6 +186,7 @@
    }else input.value=data.input;
    ready=true;conflict=false;$('analyze').disabled=busy;$('save-status').textContent='已恢复本机保存的输入与最近结果';
    render();cache();if(input.value!==savedInput)await flush();
+   if(lines(input.value).length&&input.value!==resultInput)message('已录入 '+lines(input.value).length+' 件事，点击右侧「分析」开始；录入只会自动保存。');
    await loadArchives();
   }catch(error){
    $('save-status').textContent='连接失败：'+error.message+' 浏览器暂存内容仍保留。';$('reconnect').hidden=false;
