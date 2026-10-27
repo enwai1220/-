@@ -11,3 +11,6 @@ body{max-width:1500px;margin:auto}a{color:#111}#recovery{white-space:pre-wrap;bo
 .triage-actions{display:flex;align-items:flex-start;gap:8px}.triage-actions button{white-space:nowrap}
 .archive-section{margin-top:36px}.archive-batch{border:1px solid #ddd;margin:12px 0;background:#fff}.archive-batch summary{padding:16px;cursor:pointer;font-weight:600}.archive-body{padding:0 20px 20px}.archived-quadrant{margin-top:20px}.archived-quadrant h3{font-size:15px}.archived-quadrant .top-task{list-style:none}.archived-quadrant .task-heading h4{overflow-wrap:anywhere}
 @media(max-width:680px){.triage-actions{width:100%;justify-content:flex-end}.triage-actions button{width:auto!important}.archive-body{padding:0 12px 12px}}
+
+.triage-actions{flex-shrink:0}.triage-actions .secondary{margin-top:0}
+@media(max-width:680px){.input-row{flex-direction:column}.input-row textarea{width:100%}.triage-actions{align-self:flex-end}}
